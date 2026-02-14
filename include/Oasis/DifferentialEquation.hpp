@@ -6,54 +6,90 @@
 #define OASIS_DIFFERENTIALEQUATION_H
 
 #include "Expression.hpp"
+#include "Variable.hpp"
 #include <string>
 #include <memory>
 
 namespace Oasis {
 
-    enum class DEType {
-        UNKNOWN,
-        FIRST_ORDER_LINEAR,
-        FIRST_ORDER_SEPARABLE,
-        FIRST_ORDER_HOMOGENEOUS,
-        EXACT,
-        BERNOULLI
+    enum class DECategory {
+        Unclassified,
+        FirstOrderHomogeneous,
+        FirstOrderLinear,
+        FirstOrderSeparable
     };
 
+    /**
+     * Abstract base class for all differential equations in Oasis.
+     */
     class DifferentialEquation : public Expression {
-    protected:
-        std::unique_ptr<Expression> lhs; // Left hand side of eqn
-        std::unique_ptr<Expression> rhs; // Right hand side of eqn
-        std::string independentVar;
-        std::string dependentVar;
-        DEType type;
-
     public:
+        /**
+        * @param lhs            The left-hand side of the equation (usually dy/dx).
+        * @param rhs            The right-hand side (the expression it equals).
+        * @param independentVar Name of the independent variable (default "x").
+        * @param dependentVar   Name of the dependent variable   (default "y").
+        */
         DifferentialEquation(
             std::unique_ptr<Expression> lhs,
             std::unique_ptr<Expression> rhs,
-            const std::string& independentVar,
-            const std::string& dependentVar);
+            std::string independentVar = "x",
+            std::string dependentVar   = "y"
+        );
 
-        virtual ~DifferentialEquation() = default;
+        // Rule-of-five boilerplate
+        DifferentialEquation(const DifferentialEquation&);
+        DifferentialEquation& operator=(const DifferentialEquation&);
+        DifferentialEquation(DifferentialEquation&&) noexcept            = default;
+        DifferentialEquation& operator=(DifferentialEquation&&) noexcept = default;
+        ~DifferentialEquation() override                                  = default;
 
-        // Core methods
-        virtual std::unique_ptr<Expression> solve() = 0;
-        virtual DEType classify() = 0;
-        virtual bool verify(const Expression& solution) const;
+        /**
+        * Solve the differential equation and return y(x) as an Expression.
+        *
+        * Returns an error string when no closed-form solution can be found.
+        */
+        [[nodiscard]] virtual std::expected<std::unique_ptr<Expression>, std::string>
+        Solve() const = 0;
 
-        // "Getter" Functions
-        const Expression* getLHS() const { return lhs.get(); }
-        const Expression* getRHS() const { return rhs.get(); }
-        std::string getIndependentVar() const { return independentVar; }
-        std::string getDependentVar() const { return dependentVar; }
-        DEType getType() const { return type; }
+        /**
+        * @brief Classify and return the DECategory for this equation.
+        */
+        [[nodiscard]] virtual DECategory Classify() const = 0;
 
-        // Display
-        virtual std::string toString() const override;
+        // -----------------------------------------------------------------------
+        // Expression interface (required by Oasis base class)
+        // -----------------------------------------------------------------------
+
+        [[nodiscard]] std::unique_ptr<Expression> Copy() const override;
+        [[nodiscard]] bool Equals(const Expression& other) const override;
+        [[nodiscard]] std::string ToString() const;
+
+        /**
+        * @brief Plug a candidate solution back in and verify it satisfies the DE.
+        *
+        * @param solution  An Expression representing y as a function of x.
+        * @return true if the solution is verified symbolically.
+        */
+        [[nodiscard]] bool Verify(const Expression& solution) const;
+
+        // -----------------------------------------------------------------------
+        // Accessors
+        // -----------------------------------------------------------------------
+
+        [[nodiscard]] const Expression&  GetLHS()            const { return *lhs_; }
+        [[nodiscard]] const Expression&  GetRHS()            const { return *rhs_; }
+        [[nodiscard]] const std::string& GetIndependentVar() const { return independentVar_; }
+        [[nodiscard]] const std::string& GetDependentVar()   const { return dependentVar_; }
+        [[nodiscard]] DECategory         GetDECategory()       const { return category_; }
+
+        protected:
+        std::unique_ptr<Expression> lhs_;
+        std::unique_ptr<Expression> rhs_;
+        std::string                 independentVar_;
+        std::string                 dependentVar_;
+        DECategory                  category_ { DECategory::Unclassified };
     };
-
-
-}
+};
 
 #endif //OASIS_DIFFERENTIALEQUATION_H
