@@ -11,7 +11,6 @@
 #include <memory>
 
 namespace Oasis {
-
     enum class DECategory {
         Unclassified,
         FirstOrderHomogeneous,
@@ -34,15 +33,19 @@ namespace Oasis {
             std::unique_ptr<Expression> lhs,
             std::unique_ptr<Expression> rhs,
             std::string independentVar = "x",
-            std::string dependentVar   = "y"
+            std::string dependentVar = "y"
         );
 
         // Rule-of-five boilerplate
-        DifferentialEquation(const DifferentialEquation&);
-        DifferentialEquation& operator=(const DifferentialEquation&);
-        DifferentialEquation(DifferentialEquation&&) noexcept            = default;
-        DifferentialEquation& operator=(DifferentialEquation&&) noexcept = default;
-        ~DifferentialEquation() override                                  = default;
+        DifferentialEquation(const DifferentialEquation &);
+
+        DifferentialEquation &operator=(const DifferentialEquation &);
+
+        DifferentialEquation(DifferentialEquation &&) noexcept = default;
+
+        DifferentialEquation &operator=(DifferentialEquation &&) noexcept = default;
+
+        ~DifferentialEquation() override = default;
 
         /**
         * Solve the differential equation and return y(x) as an Expression.
@@ -62,7 +65,9 @@ namespace Oasis {
         // -----------------------------------------------------------------------
 
         [[nodiscard]] std::unique_ptr<Expression> Copy() const override;
-        [[nodiscard]] bool Equals(const Expression& other) const override;
+
+        [[nodiscard]] bool Equals(const Expression &other) const override;
+
         [[nodiscard]] std::string ToString() const;
 
         /**
@@ -71,24 +76,24 @@ namespace Oasis {
         * @param solution  An Expression representing y as a function of x.
         * @return true if the solution is verified symbolically.
         */
-        [[nodiscard]] bool Verify(const Expression& solution) const;
+        [[nodiscard]] bool Verify(const Expression &solution) const;
 
         // -----------------------------------------------------------------------
         // Accessors
         // -----------------------------------------------------------------------
 
-        [[nodiscard]] const Expression&  GetLHS()            const { return *lhs_; }
-        [[nodiscard]] const Expression&  GetRHS()            const { return *rhs_; }
-        [[nodiscard]] const std::string& GetIndependentVar() const { return independentVar_; }
-        [[nodiscard]] const std::string& GetDependentVar()   const { return dependentVar_; }
-        [[nodiscard]] DECategory         GetDECategory()       const { return category_; }
+        [[nodiscard]] const Expression &GetLHS() const { return *lhs_; }
+        [[nodiscard]] const Expression &GetRHS() const { return *rhs_; }
+        [[nodiscard]] const std::string &GetIndependentVar() const { return independentVar_; }
+        [[nodiscard]] const std::string &GetDependentVar() const { return dependentVar_; }
+        [[nodiscard]] DECategory GetDECategory() const { return category_; }
 
-        protected:
+    protected:
         std::unique_ptr<Expression> lhs_;
         std::unique_ptr<Expression> rhs_;
-        std::string                 independentVar_;
-        std::string                 dependentVar_;
-        DECategory                  category_ { DECategory::Unclassified };
+        std::string independentVar_;
+        std::string dependentVar_;
+        DECategory category_{DECategory::Unclassified};
     };
 };
 
