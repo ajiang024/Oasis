@@ -28,7 +28,8 @@ set(Oasis_HEADERS
 
 # Adds a header-only library target called "OasisHeaders"
 add_library(OasisHeaders INTERFACE
-        Oasis/DifferentialEquation.hpp)
+        Oasis/DifferentialEquation.hpp
+        Oasis/FirstOrderLinear.hpp)
 add_library(Oasis::Headers ALIAS OasisHeaders)
 
 target_compile_features(OasisHeaders INTERFACE cxx_std_23)
