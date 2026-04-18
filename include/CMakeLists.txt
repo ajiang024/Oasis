@@ -30,7 +30,8 @@ set(Oasis_HEADERS
 add_library(OasisHeaders INTERFACE
         Oasis/DifferentialEquation.hpp
         Oasis/FirstOrderLinear.hpp
-        Oasis/FirstOrderHomogeneous.hpp)
+        Oasis/FirstOrderHomogeneous.hpp
+        Oasis/FirstOrderSeparable.hpp)
 add_library(Oasis::Headers ALIAS OasisHeaders)
 
 target_compile_features(OasisHeaders INTERFACE cxx_std_23)
