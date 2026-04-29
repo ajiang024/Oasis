@@ -31,7 +31,8 @@ set(Oasis_SOURCES
         DifferentialEquation.cpp
         DifferentialEquation.cpp
         FirstOrderLinear.cpp
-        FirstOrderHomogeneous.cpp)
+        FirstOrderHomogeneous.cpp
+        FirstOrderSeparable.cpp)
 
 # Adds a library target called "Oasis" to be built from source files.
 add_library(Oasis ${Oasis_SOURCES})
