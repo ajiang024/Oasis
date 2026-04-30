@@ -4,8 +4,8 @@
 #include "Oasis/FirstOrderHomogeneous.hpp"
 
 #include "Oasis/Divide.hpp"
-#include "Oasis/Integral.hpp"
 #include "Oasis/Multiply.hpp"
+#include "Oasis/RecursiveCast.hpp"
 #include "Oasis/Subtract.hpp"
 #include "Oasis/Variable.hpp"
 
@@ -22,8 +22,8 @@ FirstOrderHomogeneous::FirstOrderHomogeneous(
     std::string independentVar,
     std::string dependentVar)
     : DifferentialEquation(
-          nullptr, // lhs — structure lives in fv_
-          nullptr, // rhs
+          nullptr,
+          nullptr,
           std::move(independentVar),
           std::move(dependentVar))
     , fv_(std::move(fv))
@@ -54,22 +54,7 @@ FirstOrderHomogeneous& FirstOrderHomogeneous::operator=(const FirstOrderHomogene
 }
 
 // ---------------------------------------------------------------------------
-// Solve  —  substitution method  v = y/x
-//
-//   Given:  dy/dx = f(y/x)
-//
-//   Let v = y/x, so y = v·x and dy/dx = v + x·dv/dx.
-//   Substituting:
-//       v + x·dv/dx = f(v)
-//       x·dv/dx     = f(v) - v
-//
-//   Separating:
-//       dv / (f(v) - v)  =  dx / x
-//
-//   Integrating both sides:
-//       ∫ 1/(f(v)-v) dv  =  ∫ 1/x dx  =  ln|x| + C
-//
-//   Then back-substitute v = y/x to get y(x).
+// Solve  —  substitution v = y/x
 // ---------------------------------------------------------------------------
 
 std::expected<std::unique_ptr<Expression>, std::string>
@@ -81,10 +66,9 @@ FirstOrderHomogeneous::Solve() const
         };
     }
 
-    const Variable v { "v" };       // substitution variable v = y/x
+    const Variable v { "v" };
     const Variable x { independentVar_ };
 
-    // Step 1: form the denominator  f(v) - v
     auto fvMinusV = Subtract<Expression> { *fv_, v }.Simplify();
     if (!fvMinusV) {
         return std::unexpected {
@@ -92,12 +76,10 @@ FirstOrderHomogeneous::Solve() const
         };
     }
 
-    // Step 2: form the integrand for the left side  1 / (f(v) - v)
     auto lhsIntegrand = std::make_unique<Divide<Expression>>(
         Real { 1.0 },
         *fvMinusV);
 
-    // Step 3: ∫ 1/(f(v)-v) dv
     auto lhsIntegral = lhsIntegrand->Integrate(v);
     if (!lhsIntegral) {
         return std::unexpected {
@@ -105,9 +87,6 @@ FirstOrderHomogeneous::Solve() const
         };
     }
 
-    // Step 4: ∫ 1/x dx  =  ln|x|
-    // The right-hand side integral is standard; Oasis's Integrate on 1/x
-    // should produce Log(x). We build it explicitly for clarity.
     auto rhsIntegrand = std::make_unique<Divide<Expression>>(
         Real { 1.0 },
         x);
@@ -115,16 +94,11 @@ FirstOrderHomogeneous::Solve() const
     auto rhsIntegral = rhsIntegrand->Integrate(x);
     if (!rhsIntegral) {
         return std::unexpected {
-            std::format(
-                "FirstOrderHomogeneous::Solve — could not integrate 1/{} d{}.",
+            std::format("FirstOrderHomogeneous::Solve — could not integrate 1/{} d{}.",
                 independentVar_, independentVar_)
         };
     }
 
-    // Step 5: back-substitute v = y/x into the implicit solution
-    // lhsIntegral(v) = rhsIntegral(x)  =>  lhsIntegral(y/x) = ln|x| + C
-    //
-    // We substitute v -> y/x in the left-hand integrated expression.
     const Variable y { dependentVar_ };
     auto yOverX = std::make_unique<Divide<Expression>>(y, x);
 
@@ -135,8 +109,6 @@ FirstOrderHomogeneous::Solve() const
         };
     }
 
-    // The implicit solution is:  backSubstituted = rhsIntegral + C
-    // Return the back-substituted left side; callers can equate it to ln|x|+C.
     return backSubstituted->Simplify();
 }
 
@@ -192,13 +164,54 @@ std::unique_ptr<Expression> FirstOrderHomogeneous::Substitute(
 }
 
 // ---------------------------------------------------------------------------
-// AcceptInternal  —  visitor / serialisation hook
+// Verify
+// ---------------------------------------------------------------------------
+
+bool FirstOrderHomogeneous::Verify(const Expression& solution) const
+{
+    if (!fv_) return false;
+
+    const Variable x { independentVar_ };
+    const Variable y { dependentVar_ };
+
+    auto dydx = solution.Differentiate(x);
+    if (!dydx) return false;
+
+    auto yOverX = Divide<Expression> { solution, x };
+    auto fOfYOverX = fv_->Substitute(Variable { "v" }, yOverX);
+    if (!fOfYOverX) return false;
+
+    auto lhs = dydx->Simplify();
+    auto rhs = fOfYOverX->Simplify();
+    if (!lhs || !rhs) return false;
+
+    auto diff = Subtract<Expression> { *lhs, *rhs }.Simplify();
+    if (!diff) return false;
+
+    if (auto result = RecursiveCast<Real>(*diff); result != nullptr) {
+        return result->GetValue() == 0.0;
+    }
+
+    return lhs->Equals(*rhs);
+}
+
+// ---------------------------------------------------------------------------
+// ToString
+// ---------------------------------------------------------------------------
+
+std::string FirstOrderHomogeneous::ToString() const
+{
+    return std::format("d{}/d{} = f({}/{})",
+        dependentVar_, independentVar_,
+        dependentVar_, independentVar_);
+}
+
+// ---------------------------------------------------------------------------
+// AcceptInternal
 // ---------------------------------------------------------------------------
 
 any FirstOrderHomogeneous::AcceptInternal(Visitor& visitor) const
 {
-    // Add VisitFirstOrderHomogeneous to the Oasis Visitor interface
-    // and dispatch here when wiring up serialisation.
     return {};
 }
 
