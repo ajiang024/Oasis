@@ -4,6 +4,12 @@
 
 #include "Oasis/DifferentialEquation.hpp"
 
+#include "Oasis/Divide.hpp"
+#include "Oasis/Multiply.hpp"
+#include "Oasis/RecursiveCast.hpp"
+#include "Oasis/Subtract.hpp"
+#include "Oasis/Variable.hpp"
+
 #include <format>
 
 namespace Oasis {
@@ -59,9 +65,6 @@ DifferentialEquation& DifferentialEquation::operator=(const DifferentialEquation
 
 std::unique_ptr<Expression> DifferentialEquation::Copy() const
 {
-    // DifferentialEquation is abstract (Solve() and Classify() are pure virtual).
-    // Each concrete subclass must override Copy() with:
-    //   return std::make_unique<DerivedType>(*this);
     return nullptr;
 }
 
@@ -86,25 +89,88 @@ bool DifferentialEquation::Equals(const Expression& other) const
 
 std::string DifferentialEquation::ToString() const
 {
-    // Represents the DE as "d(dependentVar)/d(independentVar) = f(independentVar)"
-    // If Expression gains a stable ToString(), replace the rhs placeholder accordingly.
-    const std::string lhsStr = std::format("d{}/d{}", dependentVar_, independentVar_);
-    const std::string rhsStr = rhs_ ? std::format("f({})", independentVar_) : "<null>";
-    return std::format("{} = {}", lhsStr, rhsStr);
+    return std::format("d{}/d{} = f({}, {})",
+        dependentVar_, independentVar_,
+        independentVar_, dependentVar_);
 }
 
 // ---------------------------------------------------------------------------
-// Verify
+// Verify  (base stub — overridden in each subclass)
 // ---------------------------------------------------------------------------
 
 bool DifferentialEquation::Verify(const Expression& solution) const
 {
-    // Stub – override in concrete subclasses:
-    //   1. Differentiate `solution` w.r.t. independentVar_ to get y'.
-    //   2. Substitute y and y' into the LHS expression.
-    //   3. Simplify and compare against RHS.
-    //   4. Return true iff the two sides are symbolically equal.
-    return !solution.Equals(*rhs_);  // placeholder — keeps 'solution' and 'this' in use
+    return !solution.Equals(*rhs_);
+}
+
+// ---------------------------------------------------------------------------
+// ClassifyDE  —  static factory
+// ---------------------------------------------------------------------------
+
+DECategory DifferentialEquation::ClassifyDE(
+    const Expression& lhs,
+    const Expression& rhs,
+    const std::string& independentVar,
+    const std::string& dependentVar)
+{
+    const Variable x { independentVar };
+    const Variable y { dependentVar };
+
+    // Check FirstOrderSeparable:
+    // rhs should not contain y (d(rhs)/dy == 0)
+    auto dRhsDy = rhs.Differentiate(y);
+    auto dLhsDx = lhs.Differentiate(x);
+
+    bool rhsIndependentOfY = false;
+    bool lhsIndependentOfX = false;
+
+    if (dRhsDy) {
+        if (auto r = RecursiveCast<Real>(*dRhsDy); r != nullptr) {
+            rhsIndependentOfY = (r->GetValue() == 0.0);
+        }
+    }
+
+    if (dLhsDx) {
+        if (auto r = RecursiveCast<Real>(*dLhsDx); r != nullptr) {
+            lhsIndependentOfX = (r->GetValue() == 0.0);
+        }
+    }
+
+    if (rhsIndependentOfY && lhsIndependentOfX) {
+        return DECategory::FirstOrderSeparable;
+    }
+
+    // Check FirstOrderLinear:
+    // rhs is linear in y => d²(rhs)/dy² == 0
+    auto dRhsDy2 = dRhsDy ? dRhsDy->Differentiate(y) : nullptr;
+    if (dRhsDy2) {
+        if (auto r = RecursiveCast<Real>(*dRhsDy2); r != nullptr) {
+            if (r->GetValue() == 0.0) {
+                return DECategory::FirstOrderLinear;
+            }
+        }
+    }
+
+    // Check FirstOrderHomogeneous:
+    // substitute y -> v*x; if x disappears from the result it is degree-0 homogeneous
+    const Variable v { "v" };
+    auto vx = Multiply<Expression> { v, x };
+    auto substituted = rhs.Substitute(y, vx);
+    if (substituted) {
+        auto simplified = substituted->Simplify();
+        if (simplified) {
+            auto dSimplDx = simplified->Differentiate(x);
+            if (dSimplDx) {
+                if (auto r = RecursiveCast<Real>(*dSimplDx); r != nullptr) {
+                    if (r->GetValue() == 0.0) {
+                        return DECategory::FirstOrderHomogeneous;
+                    }
+                }
+            }
+        }
+    }
+
+    return DECategory::Unclassified;
 }
 
 } // namespace Oasis
