@@ -316,8 +316,7 @@ TEST_CASE("FirstOrderSeparable — Solve y dy = x^2 dx", "[DE][FirstOrderSeparab
     REQUIRE(result.value() != nullptr);
 }
 
-TEST_CASE("FirstOrderSeparable — Solve returns error for null g(y)", "[DE][FirstOrderSeparable][Solve][Error]")
-{
+TEST_CASE("FirstOrderSeparable — Solve returns error for null g(y)", "[DE][FirstOrderSeparable][Solve][Error]") {
     // Passing null g(y) should return an unexpected error, not crash
     Oasis::FirstOrderSeparable de {
         nullptr,
@@ -326,3 +325,4 @@ TEST_CASE("FirstOrderSeparable — Solve returns error for null g(y)", "[DE][Fir
 
     auto result = de.Solve();
     REQUIRE_FALSE(result.has_value());
+}
