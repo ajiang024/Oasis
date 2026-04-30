@@ -40,6 +40,7 @@ public:
     DifferentialEquation(DifferentialEquation&&) noexcept            = default;
     DifferentialEquation& operator=(DifferentialEquation&&) noexcept = default;
     ~DifferentialEquation() override                                  = default;
+    EXPRESSION_TYPE(DifferentialEquation)
 
     [[nodiscard]] virtual std::expected<std::unique_ptr<Expression>, std::string>
     Solve() const = 0;
