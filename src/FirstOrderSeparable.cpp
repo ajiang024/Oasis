@@ -10,6 +10,15 @@
 
 #include <format>
 
+#include "Oasis/FirstOrderSeparable.hpp"
+
+#include "Oasis/Multiply.hpp"
+#include "Oasis/RecursiveCast.hpp"
+#include "Oasis/Subtract.hpp"
+#include "Oasis/Variable.hpp"
+
+#include <format>
+
 namespace Oasis {
 
 // ---------------------------------------------------------------------------
@@ -22,8 +31,8 @@ FirstOrderSeparable::FirstOrderSeparable(
     std::string independentVar,
     std::string dependentVar)
     : DifferentialEquation(
-          nullptr, // lhs — structure lives in gy_/fx_
-          nullptr, // rhs
+          nullptr,
+          nullptr,
           std::move(independentVar),
           std::move(dependentVar))
     , gy_(std::move(gy))
@@ -58,13 +67,6 @@ FirstOrderSeparable& FirstOrderSeparable::operator=(const FirstOrderSeparable& o
 
 // ---------------------------------------------------------------------------
 // Solve  —  integrate both sides independently
-//
-//   Given:  g(y) dy = f(x) dx
-//
-//   Step 1: ∫ g(y) dy
-//   Step 2: ∫ f(x) dx
-//   Step 3: implicit solution is  ∫g(y)dy - ∫f(x)dx = C
-//           return the left-hand side; caller equates it to C.
 // ---------------------------------------------------------------------------
 
 std::expected<std::unique_ptr<Expression>, std::string>
@@ -79,28 +81,22 @@ FirstOrderSeparable::Solve() const
     const Variable x { independentVar_ };
     const Variable y { dependentVar_ };
 
-    // Step 1: ∫ g(y) dy
     auto integralGy = gy_->Integrate(y);
     if (!integralGy) {
         return std::unexpected {
-            std::format(
-                "FirstOrderSeparable::Solve — could not integrate g({}) d{}.",
+            std::format("FirstOrderSeparable::Solve — could not integrate g({}) d{}.",
                 dependentVar_, dependentVar_)
         };
     }
 
-    // Step 2: ∫ f(x) dx
     auto integralFx = fx_->Integrate(x);
     if (!integralFx) {
         return std::unexpected {
-            std::format(
-                "FirstOrderSeparable::Solve — could not integrate f({}) d{}.",
+            std::format("FirstOrderSeparable::Solve — could not integrate f({}) d{}.",
                 independentVar_, independentVar_)
         };
     }
 
-    // Step 3: implicit solution  ∫g(y)dy - ∫f(x)dx = C
-    // Return the left-hand side simplified; caller equates to constant C.
     auto implicitSolution = Subtract<Expression> {
         *integralGy,
         *integralFx
@@ -183,13 +179,55 @@ std::unique_ptr<Expression> FirstOrderSeparable::Substitute(
 }
 
 // ---------------------------------------------------------------------------
-// AcceptInternal  —  visitor / serialisation hook
+// Verify
+// ---------------------------------------------------------------------------
+
+bool FirstOrderSeparable::Verify(const Expression& solution) const
+{
+    if (!gy_ || !fx_) return false;
+
+    const Variable x { independentVar_ };
+    const Variable y { dependentVar_ };
+
+    auto dydx = solution.Differentiate(x);
+    if (!dydx) return false;
+
+    auto gSolution = gy_->Substitute(y, solution);
+    if (!gSolution) return false;
+
+    auto lhs = Multiply<Expression> { *gSolution, *dydx }.Simplify();
+    if (!lhs) return false;
+
+    auto rhs = fx_->Simplify();
+    if (!rhs) return false;
+
+    auto diff = Subtract<Expression> { *lhs, *rhs }.Simplify();
+    if (!diff) return false;
+
+    if (auto result = RecursiveCast<Real>(*diff); result != nullptr) {
+        return result->GetValue() == 0.0;
+    }
+
+    return lhs->Equals(*rhs);
+}
+
+// ---------------------------------------------------------------------------
+// ToString
+// ---------------------------------------------------------------------------
+
+std::string FirstOrderSeparable::ToString() const
+{
+    return std::format("g({}) d{} = f({}) d{}",
+        dependentVar_, dependentVar_,
+        independentVar_, independentVar_);
+}
+
+// ---------------------------------------------------------------------------
+// AcceptInternal
 // ---------------------------------------------------------------------------
 
 any FirstOrderSeparable::AcceptInternal(Visitor& visitor) const
 {
-    // Add VisitFirstOrderSeparable to the Oasis Visitor interface
-    // and dispatch here when wiring up serialisation.
     return {};
 }
 
