@@ -326,4 +326,3 @@ TEST_CASE("FirstOrderSeparable — Solve returns error for null g(y)", "[DE][Fir
 
     auto result = de.Solve();
     REQUIRE_FALSE(result.has_value());
-}
