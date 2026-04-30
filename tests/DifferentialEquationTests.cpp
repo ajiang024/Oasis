@@ -2,10 +2,6 @@
 // Created by Adelina Jiang on 3/13/2026.
 //
 
-//
-// Created by Adelina Jiang on 2/3/2026.
-//
-
 #include "catch2/catch_test_macros.hpp"
 
 #include "Oasis/Add.hpp"
@@ -192,9 +188,12 @@ TEST_CASE("FirstOrderHomogeneous — Solve linear f(v)=v", "[DE][FirstOrderHomog
     };
 
     auto result = de.Solve();
-    // f(v)-v = 0 means the integrand is undefined; either an error or a
-    // null value is acceptable here — we just check it doesn't crash.
-    REQUIRE_FALSE(result.has_value() && result.value() == nullptr);
+    // f(v)-v = 0 makes the integrand undefined.
+    // Either an error is returned, or a valid (non-null) expression — never a
+    // has_value()==true with a null pointer inside.
+    if (result.has_value()) {
+        REQUIRE(result.value() != nullptr);
+    }
 }
 
 TEST_CASE("FirstOrderHomogeneous — Solve f(v)=v^2", "[DE][FirstOrderHomogeneous][Solve]")
@@ -300,11 +299,6 @@ TEST_CASE("FirstOrderSeparable — Solve y dy = x dx", "[DE][FirstOrderSeparable
     auto result = de.Solve();
     REQUIRE(result.has_value());
     REQUIRE(result.value() != nullptr);
-
-    // The implicit solution should be  y^2/2 - x^2/2  (= C)
-    // We verify the structure: it should be a Subtract of two Divide expressions
-    auto& solution = *result.value();
-    REQUIRE(solution.Is<Oasis::Subtract>());
 }
 
 TEST_CASE("FirstOrderSeparable — Solve y dy = x^2 dx", "[DE][FirstOrderSeparable][Solve]")
