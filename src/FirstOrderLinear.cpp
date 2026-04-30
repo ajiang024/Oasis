@@ -6,28 +6,30 @@
 
 #include "Oasis/Add.hpp"
 #include "Oasis/Divide.hpp"
+#include "Oasis/EulerNumber.hpp"
 #include "Oasis/Exponent.hpp"
 #include "Oasis/Integral.hpp"
 #include "Oasis/Multiply.hpp"
+#include "Oasis/RecursiveCast.hpp"
+#include "Oasis/Subtract.hpp"
 #include "Oasis/Variable.hpp"
-#include "Oasis/EulerNumber.hpp"
 
 #include <format>
 
-
-
 namespace Oasis {
 
-
+// ---------------------------------------------------------------------------
 // Constructor
+// ---------------------------------------------------------------------------
+
 FirstOrderLinear::FirstOrderLinear(
     std::unique_ptr<Expression> px,
     std::unique_ptr<Expression> qx,
     std::string independentVar,
     std::string dependentVar)
     : DifferentialEquation(
-          nullptr,   // lhs — not used directly; structure lives in px_/qx_
-          nullptr,   // rhs
+          nullptr,
+          nullptr,
           std::move(independentVar),
           std::move(dependentVar))
     , px_(std::move(px))
@@ -36,7 +38,10 @@ FirstOrderLinear::FirstOrderLinear(
     category_ = DECategory::FirstOrderLinear;
 }
 
+// ---------------------------------------------------------------------------
 // Copy constructor / copy-assignment
+// ---------------------------------------------------------------------------
+
 FirstOrderLinear::FirstOrderLinear(const FirstOrderLinear& other)
     : DifferentialEquation(other)
     , px_(other.px_ ? other.px_->Copy() : nullptr)
@@ -57,12 +62,9 @@ FirstOrderLinear& FirstOrderLinear::operator=(const FirstOrderLinear& other)
     return *this;
 }
 
-
+// ---------------------------------------------------------------------------
 // Solve  —  integrating factor method
-//
-//   Given:  dy/dx + P(x)·y = Q(x)
-//   μ(x)  = e^(∫P(x) dx)
-//   y     = (1/μ) · (∫μ·Q dx + C)
+// ---------------------------------------------------------------------------
 
 std::expected<std::unique_ptr<Expression>, std::string>
 FirstOrderLinear::Solve() const
@@ -73,7 +75,6 @@ FirstOrderLinear::Solve() const
 
     const Variable x { independentVar_ };
 
-    // Step 1: ∫P(x) dx
     auto integralOfP = px_->Integrate(x);
     if (!integralOfP) {
         return std::unexpected {
@@ -81,17 +82,14 @@ FirstOrderLinear::Solve() const
         };
     }
 
-    // Step 2: μ(x) = e^(∫P dx)
     auto mu = std::make_unique<Exponent<Expression>>(
         EulerNumber {},
         *integralOfP);
 
-    // Step 3: μ(x) · Q(x)
     auto muTimesQ = std::make_unique<Multiply<Expression>>(
         *mu,
         *qx_);
 
-    // Step 4: ∫μ(x)·Q(x) dx
     auto integralOfMuQ = muTimesQ->Integrate(x);
     if (!integralOfMuQ) {
         return std::unexpected {
@@ -99,8 +97,6 @@ FirstOrderLinear::Solve() const
         };
     }
 
-    // Step 5: y = (1/μ) · (∫μ·Q dx)
-    // (constant of integration C is implicit — caller may add it)
     auto solution = std::make_unique<Multiply<Expression>>(
         Divide<Expression> { Real { 1.0 }, *mu },
         *integralOfMuQ);
@@ -175,8 +171,54 @@ std::unique_ptr<Expression> FirstOrderLinear::Substitute(
         dependentVar_);
 }
 
+// ---------------------------------------------------------------------------
+// Verify
+// ---------------------------------------------------------------------------
 
-// AcceptInternal  —  visitor / serialisation hook
+bool FirstOrderLinear::Verify(const Expression& solution) const
+{
+    if (!px_ || !qx_) return false;
+
+    const Variable x { independentVar_ };
+
+    auto dydx = solution.Differentiate(x);
+    if (!dydx) return false;
+
+    auto py = Multiply<Expression> { *px_, solution }.Simplify();
+    if (!py) return false;
+
+    auto lhs = Add<Expression> { *dydx, *py }.Simplify();
+    if (!lhs) return false;
+
+    auto rhs = qx_->Simplify();
+    if (!rhs) return false;
+
+    auto diff = Subtract<Expression> { *lhs, *rhs }.Simplify();
+    if (!diff) return false;
+
+    if (auto result = RecursiveCast<Real>(*diff); result != nullptr) {
+        return result->GetValue() == 0.0;
+    }
+
+    return lhs->Equals(*rhs);
+}
+
+// ---------------------------------------------------------------------------
+// ToString
+// ---------------------------------------------------------------------------
+
+std::string FirstOrderLinear::ToString() const
+{
+    return std::format("d{}/d{} + P({})*{} = Q({})",
+        dependentVar_, independentVar_,
+        independentVar_, dependentVar_,
+        independentVar_);
+}
+
+// ---------------------------------------------------------------------------
+// AcceptInternal
+// ---------------------------------------------------------------------------
+
 any FirstOrderLinear::AcceptInternal(Visitor& visitor) const
 {
     return {};
