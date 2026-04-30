@@ -76,7 +76,7 @@ namespace Oasis {
         * @param solution  An Expression representing y as a function of x.
         * @return true if the solution is verified symbolically.
         */
-        [[nodiscard]] bool Verify(const Expression &solution) const;
+        [[nodiscard]] virtual bool Verify(const Expression &solution) const;
 
         // -----------------------------------------------------------------------
         // Accessors

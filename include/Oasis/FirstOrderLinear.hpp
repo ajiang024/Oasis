@@ -44,6 +44,8 @@ public:
     // DifferentialEquation interface
     // -----------------------------------------------------------------------
 
+
+
     /**
      * Solves the DE using the integrating factor method.
      * Returns y(x) = (1/μ)·(∫μ·Q dx + C) as an Expression,
