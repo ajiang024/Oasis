@@ -20,6 +20,13 @@ enum class DECategory {
     FirstOrderSeparable
 };
 
+ /**
+ * @brief Abstract base class for all differential equations in Oasis.
+ *
+ * Provides a common interface for classifying, solving, and verifying
+ * first-order ordinary differential equations.
+ */
+
 class DifferentialEquation : public Expression {
 public:
     DifferentialEquation(
