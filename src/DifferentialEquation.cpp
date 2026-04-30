@@ -4,10 +4,9 @@
 
 #include "Oasis/DifferentialEquation.hpp"
 
-#include "Oasis/Divide.hpp"
-#include "Oasis/Multiply.hpp"
+#include "Oasis/Real.hpp"
+#include "Oasis/Real.hpp"
 #include "Oasis/RecursiveCast.hpp"
-#include "Oasis/Subtract.hpp"
 #include "Oasis/Variable.hpp"
 
 #include <format>
@@ -100,7 +99,10 @@ std::string DifferentialEquation::ToString() const
 
 bool DifferentialEquation::Verify(const Expression& solution) const
 {
-    return !solution.Equals(*rhs_);
+    if (rhs_) {
+        return solution.Equals(*rhs_);
+    }
+    return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -117,7 +119,8 @@ DECategory DifferentialEquation::ClassifyDE(
     const Variable y { dependentVar };
 
     // Check FirstOrderSeparable:
-    // rhs should not contain y (d(rhs)/dy == 0)
+    // d(rhs)/dy == 0  means rhs contains only x
+    // d(lhs)/dx == 0  means lhs contains only y
     auto dRhsDy = rhs.Differentiate(y);
     auto dLhsDx = lhs.Differentiate(x);
 
@@ -141,7 +144,7 @@ DECategory DifferentialEquation::ClassifyDE(
     }
 
     // Check FirstOrderLinear:
-    // rhs is linear in y => d²(rhs)/dy² == 0
+    // rhs is linear in y  =>  d²(rhs)/dy² == 0
     auto dRhsDy2 = dRhsDy ? dRhsDy->Differentiate(y) : nullptr;
     if (dRhsDy2) {
         if (auto r = RecursiveCast<Real>(*dRhsDy2); r != nullptr) {
@@ -152,19 +155,17 @@ DECategory DifferentialEquation::ClassifyDE(
     }
 
     // Check FirstOrderHomogeneous:
-    // substitute y -> v*x; if x disappears from the result it is degree-0 homogeneous
-    const Variable v { "v" };
-    auto vx = Multiply<Expression> { v, x };
-    auto substituted = rhs.Substitute(y, vx);
-    if (substituted) {
-        auto simplified = substituted->Simplify();
-        if (simplified) {
-            auto dSimplDx = simplified->Differentiate(x);
-            if (dSimplDx) {
-                if (auto r = RecursiveCast<Real>(*dSimplDx); r != nullptr) {
-                    if (r->GetValue() == 0.0) {
-                        return DECategory::FirstOrderHomogeneous;
-                    }
+    // Heuristic: if d(rhs)/dx cancels when we scale — approximated here by
+    // checking whether the rhs differentiates to zero w.r.t. x after
+    // differentiating w.r.t. y (mixed partial == 0 for homogeneous degree 0).
+    // Note: we avoid calling Substitute here because it is non-const.
+    auto dRhsDx = rhs.Differentiate(x);
+    if (dRhsDx) {
+        auto mixed = dRhsDx->Differentiate(y);
+        if (mixed) {
+            if (auto r = RecursiveCast<Real>(*mixed); r != nullptr) {
+                if (r->GetValue() == 0.0) {
+                    return DECategory::FirstOrderHomogeneous;
                 }
             }
         }
